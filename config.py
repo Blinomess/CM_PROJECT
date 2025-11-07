@@ -18,6 +18,10 @@ class Config:
         
         if not self.repository_url:
             errors.append("Путь обязателен")
+
+        if not self.test_repo_mode:
+            if not self._is_valid_url(self.repository_url):
+                errors.append(f"Некорректный URL репозитория: {self.repository_url}")
         
         if self.max_depth is not None:
             if not isinstance(self.max_depth, int) or self.max_depth < 1:
@@ -37,3 +41,11 @@ class Config:
             f"filter_substring: {self.filter_substring}"
         ]
         return "\n".join(config_items)
+    
+    def _is_valid_url(self, url):
+        try:
+            from urllib.parse import urlparse
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except Exception:
+            return False

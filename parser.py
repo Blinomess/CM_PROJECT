@@ -91,4 +91,4 @@ python main.py django /path/to/repo --filter "security" --output deps.png
         except Exception as e:
             if hasattr(e, '__module__') and e.__module__ == 'argparse':
                 sys.exit(1)
-            raise ValidationError(f"Ошибка: {str(e)}")
+            raise ValidationError(f"{str(e)}")

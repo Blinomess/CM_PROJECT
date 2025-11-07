@@ -1,0 +1,14 @@
+Package: python3
+Version: 3.8.2-0ubuntu2
+Depends: python3.8, libpython3-stdlib, dh-python
+Description: Python programming language
+
+Package: nginx
+Version: 1.18.0-0ubuntu1
+Depends: libc6, libpcre3, zlib1g, libssl1.1
+Description: NGINX web server
+
+Package: git
+Version: 1:2.25.1-1ubuntu3
+Depends: libc6, libcurl4, liberror-perl
+Description: Version control system
