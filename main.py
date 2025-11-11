@@ -17,25 +17,20 @@ class DependencyVisualizer:
         print(self.config)
 
     def analyze_dependencies(self):
-        """Анализ зависимостей пакета - новая функция из этапа 2"""
         print(f"\nАнализа зависимостей для пакета: {self.config.package_name}")
         print(f"Репозиторий: {self.config.repository_url}")
         
         try:
-            # Получаем прямые зависимости - новая логика этапа 2
             dependencies = self.apt_parser.get_package_dependencies(self.config.package_name)
             
-            # Вывод зависимостей (требование этапа 2)
             self._display_dependencies(dependencies)
             
-            # Фильтрация если указана подстрока
             if self.config.filter_substring:
                 dependencies = [dep for dep in dependencies 
                               if self.config.filter_substring in dep]
                 print(f"\nПосле фильтрации по '{self.config.filter_substring}':")
                 self._display_dependencies(dependencies)
             
-            # ASCII-дерево если активировано
             if self.config.ascii_tree_mode:
                 self._display_ascii_tree(dependencies)
             
@@ -45,7 +40,6 @@ class DependencyVisualizer:
             raise
     
     def _display_dependencies(self, dependencies):
-        """Вывод списка зависимостей - новая функция из этапа 2"""
         if not dependencies:
             print("Пакет не имеет зависимостей")
             return
@@ -56,17 +50,16 @@ class DependencyVisualizer:
         print(f"Всего зависимостей: {len(dependencies)}")
     
     def _display_ascii_tree(self, dependencies):
-        """Отображение ASCII-дерева зависимостей - обновленная функция"""
         print(f"\nДерево зависимостей '{self.config.package_name}':")
         if not dependencies:
-            print("  └── (нет зависимостей)")
+            print("  --- (нет зависимостей)")
             return
         
         for i, dep in enumerate(dependencies):
             if i == len(dependencies) - 1:
-                print(f"  └── {dep}")
+                print(f"  --- {dep}")
             else:
-                print(f"  ├── {dep}")
+                print(f"  --- {dep}")
     
     def simulate_dependency_analysis(self):
         print(f"\nАнализа зависимостей для пакета: {self.config.package_name}\n")

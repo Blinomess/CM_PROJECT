@@ -10,7 +10,6 @@ class APTParser:
         self.test_repo_mode = test_repo_mode
         
     def get_package_dependencies(self, package_name):
-        """Получить прямые зависимости пакета из APT репозитория"""
         try:
             if self.test_repo_mode:
                 return self._get_dependencies_from_test_repo(package_name)
@@ -23,18 +22,26 @@ class APTParser:
             raise RepositoryError(f"Ошибка парсинга зависимостей: {e}")
     
     def _get_dependencies_from_ubuntu_repo(self, package_name):
-        """Получить зависимости из официального репозитория Ubuntu"""
-        # Формируем URL для Packages файла
-        packages_url = urljoin(self.repository_url, "dists/focal/main/binary-amd64/Packages")
+        if "debian" in self.repository_url.lower():
+            packages_url = urljoin(self.repository_url, "dists/stable/main/binary-amd64/Packages.gz")
+        else:
+            packages_url = "http://ftp.de.debian.org/debian/dists/stable/main/binary-amd64/Packages.gz"
         
-        # Скачиваем и парсим Packages файл
-        with urllib.request.urlopen(packages_url) as response:
-            content = response.read().decode('utf-8')
-            
-        return self._parse_packages_file(content, package_name)
+        try:
+            print(f"Загрузка файла Packages из: {packages_url}")
+            with urllib.request.urlopen(packages_url, timeout=10) as response:
+                import gzip
+                content = gzip.decompress(response.read()).decode('utf-8')
+                print("Файл Packages успешно загружен")
+                
+            return self._parse_packages_file(content, package_name)
+        
+        except urllib.error.URLError as e:
+            raise RepositoryError(f"Ошибка сети: {e}")
+        except Exception as e:
+            raise RepositoryError(f"Ошибка загрузки зависимостей: {e}")
     
     def _get_dependencies_from_test_repo(self, package_name):
-        """Получить зависимости из тестового репозитория (файла)"""
         try:
             with open(self.repository_url, 'r', encoding='utf-8') as file:
                 content = file.read()
@@ -45,7 +52,6 @@ class APTParser:
             raise RepositoryError(f"Ошибка чтения файла: {e}")
     
     def _parse_packages_file(self, content, target_package):
-        """Парсинг файла Packages для поиска зависимостей"""
         packages = self._split_into_packages(content)
         
         for package_block in packages:
@@ -55,30 +61,25 @@ class APTParser:
         raise RepositoryError(f"Пакет '{target_package}' не найден в репозитории")
     
     def _split_into_packages(self, content):
-        """Разделить содержимое на блоки пакетов"""
         return re.split(r'\n\n', content.strip())
     
     def _is_target_package(self, package_block, target_package):
-        """Проверить, является ли блок искомым пакетом"""
         package_match = re.search(r'^Package:\s*(.+)$', package_block, re.MULTILINE)
         return package_match and package_match.group(1) == target_package
     
     def _extract_dependencies(self, package_block):
-        """Извлечь зависимости из блока пакета"""
         deps_match = re.search(r'^Depends:\s*(.+)$', package_block, re.MULTILINE)
         if not deps_match:
-            return []  # Нет зависимостей
+            return []
         
         depends_line = deps_match.group(1)
         return self._parse_depends_line(depends_line)
     
     def _parse_depends_line(self, depends_line):
-        """Парсинг строки Depends для извлечения имен пакетов"""
-        # Убираем версии и альтернативы (package1 | package2)
         dependencies = []
         for dep in depends_line.split(','):
             dep = dep.strip()
-            # Извлекаем имя пакета (до первой скобки или конца)
+
             package_name = re.split(r'[\(\|]', dep)[0].strip()
             if package_name and package_name not in dependencies:
                 dependencies.append(package_name)
