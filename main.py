@@ -6,92 +6,78 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from parser import CommandLineParser
 from errors import DependencyVisualizerError, ValidationError, ConfigError, RepositoryError
 from apt_parser import APTParser
+from graph_builder import GraphBuilder
 
 class DependencyVisualizer:
     def __init__(self, config):
         self.config = config
         self.apt_parser = APTParser(config.repository_url, config.test_repo_mode)
+        self.graph_builder = GraphBuilder(
+            self.apt_parser, 
+            config.max_depth, 
+            config.filter_substring
+        )
 
     def display_config(self):
         print("Конфигурация:")
         print(self.config)
 
     def analyze_dependencies(self):
-        print(f"\nАнализа зависимостей для пакета: {self.config.package_name}")
-        print(f"Репозиторий: {self.config.repository_url}")
-        
         try:
-            dependencies = self.apt_parser.get_package_dependencies(self.config.package_name)
-            
-            self._display_dependencies(dependencies)
-            
-            if self.config.filter_substring:
-                dependencies = [dep for dep in dependencies 
-                              if self.config.filter_substring in dep]
-                print(f"\nПосле фильтрации по '{self.config.filter_substring}':")
-                self._display_dependencies(dependencies)
-            
+            dependency_graph = self.graph_builder.build_dependency_graph(
+                self.config.package_name
+            )
+
+            self._display_dependency_graph(dependency_graph)
+
             if self.config.ascii_tree_mode:
-                self._display_ascii_tree(dependencies)
+                self._display_ascii_tree(dependency_graph)
             
-            return dependencies
+            return dependency_graph
             
         except RepositoryError as e:
             raise
-    
-    def _display_dependencies(self, dependencies):
-        if not dependencies:
-            print("Пакет не имеет зависимостей")
+
+    def _display_dependency_graph(self, graph):
+        if not graph:
+            print("Граф зависимостей пуст")
             return
         
-        print(f"\nПрямые зависимости пакета '{self.config.package_name}':")
-        for i, dep in enumerate(dependencies, 1):
-            print(f"  {i}. {dep}")
-        print(f"Всего зависимостей: {len(dependencies)}")
-    
-    def _display_ascii_tree(self, dependencies):
-        print(f"\nДерево зависимостей '{self.config.package_name}':")
-        if not dependencies:
-            print("  --- (нет зависимостей)")
-            return
-        
-        for i, dep in enumerate(dependencies):
-            if i == len(dependencies) - 1:
-                print(f"  --- {dep}")
+        print(f"\nДетальный граф зависимостей:")
+        for package, dependencies in graph.items():
+            if dependencies:
+                deps_str = ", ".join(dependencies)
+                print(f"  {package} -> {deps_str}")
             else:
-                print(f"  --- {dep}")
+                print(f"  {package} -> (нет зависимостей)")
     
-    def simulate_dependency_analysis(self):
-        print(f"\nАнализа зависимостей для пакета: {self.config.package_name}\n")
-        
-        if self.config.test_repo_mode:
-            print("Тестовый репозиторий")
-        else:
-            print("Реальный репозиторий")
-        
-        if self.config.max_depth:
-            print(f"Максимальная глубина: {self.config.max_depth}")
-        
-        if self.config.filter_substring:
-            print(f"Фильтр пакетов: '{self.config.filter_substring}'")
-        
-        if self.config.ascii_tree_mode:
-            print("\nАски дерево: ")
-            self._display_sample_ascii_tree()
-        
-        print(f"\nРезультат сохранён в: {self.config.output_filename}")
+    def _display_ascii_tree(self, graph):
+        print(f"\nДерево зависимостей '{self.config.package_name}':")
+        if self.config.package_name not in graph:
+            print("  Пакет не найден в графе")
+            return
+            
+        visited = set()
+        self._print_tree_node(self.config.package_name, graph, "", True, visited)
     
-    def _display_sample_ascii_tree(self):
-        sample_tree = """
-sample-package-1.0.0
-├── dependency-a-2.1.0
-│   ├── sub-dependency-x-1.0.0
-│   └── sub-dependency-y-1.5.0
-├── dependency-b-3.0.0
-│   └── sub-dependency-z-2.0.0
-└── dependency-c-1.2.0
-            """
-        print(sample_tree)
+    def _print_tree_node(self, package, graph, prefix, is_last, visited):
+        if package in visited:
+            connector = "L " if is_last else "Г "
+            print(prefix + connector + package + " [ЦИКЛ]")
+            return
+            
+        visited.add(package)
+        
+        connector = "L " if is_last else "Г "
+        print(prefix + connector + package)
+        
+        if package in graph:
+            dependencies = graph[package]
+            new_prefix = prefix + ("    " if is_last else "|   ")
+            
+            for i, dep in enumerate(dependencies):
+                is_last_dep = (i == len(dependencies) - 1)
+                self._print_tree_node(dep, graph, new_prefix, is_last_dep, visited.copy())
 
 def main():
     try:
@@ -102,27 +88,27 @@ def main():
         
         visualizer.display_config()
         
-        dependencies = visualizer.analyze_dependencies()
-        
-        print(f"\nЗавершено. Найдено {len(dependencies)} зависимостей")
+        dependency_graph = visualizer.analyze_dependencies()
+
+        print(f"\nЗавершено успешно!")
         
     except ValidationError as e:
-        print(f"Ошибка: {e}", file=sys.stderr)
+        print(f"Ошибка валидации: {e}", file=sys.stderr)
         sys.exit(1)
     except ConfigError as e:
-        print(f"Ошибка: {e}", file=sys.stderr)
+        print(f"Ошибка конфигурации: {e}", file=sys.stderr)
         sys.exit(1)
     except RepositoryError as e:
-        print(f"Ошибка: {e}", file=sys.stderr)
+        print(f"Ошибка репозитория: {e}", file=sys.stderr)
         sys.exit(1)
     except DependencyVisualizerError as e:
-        print(f"Ошибка: {e}", file=sys.stderr)
+        print(f"Ошибка визуализатора: {e}", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:
-        print("\nОтмена", file=sys.stderr)
+        print("\nПрервано пользователем", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"Ошибка: {e}", file=sys.stderr)
+        print(f"Неожиданная ошибка: {e}", file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":

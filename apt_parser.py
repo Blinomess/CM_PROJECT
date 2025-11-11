@@ -8,18 +8,20 @@ class APTParser:
     def __init__(self, repository_url, test_repo_mode=False):
         self.repository_url = repository_url
         self.test_repo_mode = test_repo_mode
+        self.test_repo = None
         
+        if test_repo_mode:
+            from test_repository import TestRepository
+            self.test_repo = TestRepository(repository_url)
+    
     def get_package_dependencies(self, package_name):
         try:
             if self.test_repo_mode:
-                return self._get_dependencies_from_test_repo(package_name)
+                return self.test_repo.get_package_dependencies(package_name)
             else:
                 return self._get_dependencies_from_ubuntu_repo(package_name)
-                
-        except urllib.error.URLError as e:
-            raise RepositoryError(f"Ошибка доступа к репозиторию: {e}")
         except Exception as e:
-            raise RepositoryError(f"Ошибка парсинга зависимостей: {e}")
+            raise RepositoryError(f"Ошибка получения зависимостей: {e}")
     
     def _get_dependencies_from_ubuntu_repo(self, package_name):
         if "debian" in self.repository_url.lower():
